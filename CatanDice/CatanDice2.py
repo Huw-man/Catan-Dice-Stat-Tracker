@@ -37,14 +37,17 @@ class BarGraph:
             5:['5', 3*labelGap+30, 0, 1], 6:['6', 4*labelGap+30, 0, 1], 7:['7', 5*labelGap+30, 0, 1],
             8:['8', 6*labelGap+30, 0, 1], 9:['9', 7*labelGap+30, 0, 1], 10:['10', 8*labelGap+30, 0, 1],
             11:['11', 9*labelGap+30, 0, 1], 12:['12', 10*labelGap+30, 0, 1]}
-        self.drawLabels()
 
-    def drawLabels(self):
+    def drawLabels(self, canvas):
         for i in self.labels:     #write labels
-            self.graph.create_text(self.labels[i][1], self.height-30, anchor='nw', text=self.labels[i][0], font=("Times", 20, "bold"))
+            canvas.create_text(self.labels[i][1], self.height-30, anchor='nw', text=self.labels[i][0], font=("Times", 20, "bold"))
 
     def drawGraph(self, entry): #update and draw graph
         print("drawGraph")
+        self.graph.destroy()
+        newGraph = tk.Canvas(self.parent, width= self.width, height = self.height, bg='light gray')
+        self.drawLabels(newGraph)
+
         minHeight = self.height-30
         fullHeight = minHeight - 30
         self.labels[entry][2] += 1
@@ -53,9 +56,12 @@ class BarGraph:
         else:
             segmentHeight=0
         print ("segment"+str(self.labels[entry][2]*segmentHeight))
-        self.graph.create_rectangle(self.labels[entry][1] -5, minHeight-(self.labels[entry][2]*segmentHeight),
-            self.labels[entry][1] +20, minHeight, fill='blue')
-        self.graph.update()
+        for c in self.labels:
+            newGraph.create_rectangle(self.labels[c][1] -5, minHeight-(self.labels[c][2]*segmentHeight),
+                self.labels[c][1] +20, minHeight, fill='blue')
+        self.graph = newGraph
+        #self.graph.update()
+        self.graph.grid(row=0, column=1)
 
     def findMaxRolls(self):
         max = 0
