@@ -3,6 +3,9 @@
 
 import tkinter as tk
 import random
+from gtts import gTTS
+import os
+from threading import Thread
 
 class DiceRoller(tk.Frame):
     print("DiceRoller")
@@ -13,16 +16,22 @@ class DiceRoller(tk.Frame):
         self.turnOrder = turnOrder
         self.turn = tk.StringVar()#number
         self.turnCount = 1
+        print(turnOrder)
 
         self.rollButton = tk.Button(self, textvariable=self.rollNum, font=('Ariel', 100), bg='black',
             activebackground='gray20', activeforeground='white', fg='white', width=4,
             command=self.roll)
         self.rollButton.grid(row=1, column=0)
 
-        tn1 = self.trackTurn()
-        self.turn.set(tn1[1]+" turn")
-        self.turnLabel = tk.Label(self, textvariable=self.turn, bg=tn1[1] ,font=('Sans', 30), width=13, height=4)
+        #tn1 = self.trackTurn()
+        self.turn.set(self.turnOrder[1][1]+ " turn")
+        self.turnLabel = tk.Label(self, textvariable=self.turn, bg=self.turnOrder[1][1] ,font=('Sans', 30), width=13, height=4)
         self.turnLabel.grid(row=0, column=0)
+
+        self.audioToggle = tk.IntVar() #1=on 0=off
+        self.audio = tk.Checkbutton(self, variable = self.audioToggle, text="Audio", font=("Sans", 14, 'bold'))
+        self.audio.grid()
+
         #create a barGraph
         self.barGraph = BarGraph(self)
 
@@ -35,6 +44,16 @@ class DiceRoller(tk.Frame):
         else:
             self.turn.set(tn[1]+" turn")
         self.turnLabel.configure(bg=tn[1])
+        #audio text to speech
+        tts= gTTS(text=self.rollNum.get(), lang='en')
+        tts.save("number2.mp3")
+        audioThread = Thread(target=self.enableAudio())
+        audioThread.start()
+        audioThread.join()
+
+    def enableAudio(self):
+        if self.audioToggle.get() == 1:
+            os.system("number2.mp3")
 
     def trackTurn(self): #returns the current turn. called every roll to keep track
         for k in self.turnOrder:
@@ -47,8 +66,8 @@ class DiceRoller(tk.Frame):
 class BarGraph:
     print("barGraph")
     def __init__(self, parent):
-        self.width = 500
-        self.height = 400
+        self.width = 800
+        self.height = 600
         self.parent = parent
         #Canvas for barGraph
         self.graph = tk.Canvas(parent, width= self.width, height = self.height, bg='light gray')
@@ -68,59 +87,68 @@ class BarGraph:
             11:[ 10*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
             12:[ 11*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}]}
         self.drawLabels(self.graph)
+        self.drawBars(self.graph)
 
     def drawGraph(self, entry, player): #update graph
-        print(str(entry) + " "+player)
+        #print(str(entry) + " "+player)
         self.labels[entry][1][player] +=1
         #print(self.labels)
         self.graph.destroy()
         newGraph = tk.Canvas(self.parent, width= self.width, height = self.height, bg='light gray')
         self.drawLabels(newGraph)
         self.drawBars(newGraph)
+        self.totalRolls(newGraph)
         self.graph = newGraph
         #self.graph.update()
         self.graph.grid(row=0, column=1, rowspan=2)
 
     def drawLabels(self, canvas):
         for i in self.labels: #write labels
-            canvas.create_text(self.labels[i][0], self.height-30, anchor='nw', text=i, font=("Times", 20, "bold"))
+            canvas.create_text(self.labels[i][0], self.height-30, anchor='nw', text=i, font=("Times", 25, "bold"))
 
     def drawBars(self, canvas): #draw bars on graph
         minHeight = self.height-30
         fullHeight = minHeight - 30
-        if self.findMaxRolls()!=0:
+        if self.findMaxRolls()==0:
+            segmentHeight =0
+        else:
             segmentHeight = fullHeight/self.findMaxRolls()
+            for c in self.labels:
+                tmin = minHeight
+                for d in self.labels[c][1]:
+                    #print(d + str(self.labels[c][1][d]))
+                    if self.labels[c][1][d] != 0:
+                        tmax = tmin - (self.labels[c][1][d]*segmentHeight)
+                        canvas.create_rectangle(self.labels[c][0] -7, tmax, self.labels[c][0] +27, tmin, fill=d)
+                        canvas.create_text(self.labels[c][0]+7, (tmin-tmax)/2+tmax, text=self.labels[c][1][d]) #rolls per color
+                        tmin = tmax
+                #labels indicating how many rolls
+                rollsPer = self.rollsPerNumber(c)
+                canvas.create_text(self.labels[c][0]+3, minHeight-(rollsPer*segmentHeight)-20, anchor='nw', text=rollsPer, font=("Times", 16, 'bold'))
 
-        for c in self.labels:
-            #print(c)
-            tmin = minHeight
-            for d in self.labels[c][1]:
-                #print(d + str(self.labels[c][1][d]))
-                tmax = tmin - (self.labels[c][1][d]*segmentHeight)
-                #print(tmax)
-                canvas.create_rectangle(self.labels[c][0] -7, tmax, self.labels[c][0] +27, tmin, fill=d)
-                tmin = tmax
 
-            # canvas.create_rectangle(self.labels[c][1] -7, minHeight-(self.labels[c][1]*segmentHeight),
-            #     self.labels[c][1] +27, minHeight, fill='royal blue')
-            #labels indicating how many rolls
-            # if self.labels[c][1] != 0:
-            #     canvas.create_text(self.labels[c][1] +3, minHeight-(self.labels[c][1]*segmentHeight), anchor='nw', fill='white', text=self.labels[c][1], font=("Times", 14))
-            # else:
-            #     canvas.create_text(self.labels[c][1] +3, minHeight-(self.labels[c][1]*segmentHeight) -20, anchor='nw', fill='white', text=self.labels[c][1], font=("Times", 14))
+    def totalRolls(self, canvas):
+        total=0
+        for x in self.labels:
+            total+= self.rollsPerNumber(x)
+        canvas.create_text(self.width*.87, self.height*.03, anchor='nw', text="Total: "+str(total), font=('Comic Sans', 14))
 
     def findMaxRolls(self): #finds maximum rolls of one number
         sumOfRolls = {} #holds list of rolls of each number
         for r in self.labels:
-            tsum = 0
-            for s in self.labels[r][1]:
-                tsum += self.labels[r][1][s]
-            sumOfRolls[r] = tsum
-        max = 0
+            sumOfRolls[r] = self.rollsPerNumber(r)
+        maxRolls = 0
         for a in sumOfRolls:
-            if sumOfRolls[a] > max :
-                max = sumOfRolls[a]
-        return max
+            if sumOfRolls[a] > maxRolls :
+                maxRolls = sumOfRolls[a]
+        return maxRolls
+
+    def rollsPerNumber(self, num):
+        sumR = 0
+        for p in self.labels[num][1]:
+            sumR += self.labels[num][1][p]
+        return sumR
+
 
 class SetupGame(tk.Frame):
     print("setup")
@@ -164,7 +192,7 @@ class SetupGame(tk.Frame):
     def play(self): #changes to mainFrame
         print("play")
         self.grid_forget()
-        DiceRoller(self.parent, self.convertToArray(self.orderNum)).grid()
+        DiceRoller(self.parent, self.convertToArray(self.orderNum), bg='gray20').grid()
 
     def convertToArray(self, Tlist):
         t={}
@@ -185,7 +213,7 @@ class MainApplication(tk.Frame):
         tk.Frame.__init__(self, parent, *args, **kwargs)
         self.parent = parent
         print("mainApp")
-        setup = SetupGame(self, bg='gray').grid()
+        setup = SetupGame(self, bg='gray20').grid()
 
 
 if __name__ == '__main__':
