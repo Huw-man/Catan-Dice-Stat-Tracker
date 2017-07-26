@@ -3,94 +3,115 @@
 import tkinter as tk
 import random
 from gtts import gTTS
-import os
 import time
+import threading
+import playsound
+import os
 
 class DiceRoller(tk.Frame):
+    #ticker=0 #some reason the sound file needs to be different everytime???
     def __init__(self, parent, controller, *args, **kwargs):
         tk.Frame.__init__(self, parent, *args, **kwargs)
-        self.configure(bg ='gray20')
+        self.controller = controller
+        self.configure(bg = MainApp.BG_COLOR)
         self.rollNum = tk.StringVar()
-        self.rollNum.set("Roll")
-        self.turnOrder = {1:[1, 'black']}
+        self.turnOrder = {} #initialized empty, to be filled when turns are set
         self.turn = tk.StringVar()#number
         self.turnCount = 1
         self.parent = parent
         self.timeElapsed = tk.StringVar()
+        self.barGraph = BarGraph(self) #creat BarGraph object
 
+        self.rollNum.set("Roll")
         self.rollButton = tk.Button(self, textvariable=self.rollNum, font=('Ariel', 100), bg='black',
-            activebackground='gray20', activeforeground='white', fg='white', width=4,
+            activebackground='dark gray', activeforeground='white', fg='white', width=4,
             command=self.roll)
-        self.rollButton.grid(row=2, column=0, padx=10, pady=10)
+        self.rollButton.bind('<space>', self.roll_a)
+        self.rollButton.grid(row=4, column=0, padx=10, pady=10)
+        #self.rollButton.focus_force()
 
-        #tn1 = self.trackTurn()
-        self.turn.set(self.turnOrder[1][1]+ " turn")
-        self.turnLabel = tk.Label(self, textvariable=self.turn, bg=self.turnOrder[1][1] ,font=('Sans', 30), width=13, height=4)
-        self.turnLabel.grid(row=1, column=0, padx=10, pady=10)
+        self.turn.set("Start")
+        self.turnLabel = tk.Label(self, textvariable=self.turn, bg='snow' ,font=('Sans', 35), width=10, height=3)
+        self.turnLabel.grid(row=2, column=0, padx=10, pady=10)
+
+        self.nextTurn = tk.Label(self, text='', bg='snow' ,font=('Sans', 20), width=13, height=1)
+        self.nextTurn.grid(row=3, column=0, sticky='n')
+
+        self.prevTurn = tk.Label(self, text='', bg='snow' ,font=('Sans', 20), width=13, height=1)
+        self.prevTurn.grid(row=1, column=0, sticky='s')
 
         back = tk.Button(self, text='<<<', bg='black', fg='white', font=("Sans", 14, 'bold'), command= lambda: controller.show_frame(Setup))
         back.grid(row=0, column=0, sticky='w')
 
         self.audioToggle = tk.IntVar() #1=on 0=off
-        audio = tk.Checkbutton(self, variable = self.audioToggle, bg='black', fg='white', activebackground='gray20', activeforeground='white',
+        audio = tk.Checkbutton(self, variable = self.audioToggle, bg='black', fg='white', activebackground=MainApp.BG_COLOR, activeforeground='white',
             selectcolor='red', text="Audio", font=("Sans", 14, 'bold'))
         audio.grid(row=0, column=1, sticky='e')
 
         # self.timeElapsed = tk.StringVar()
         # timer = tk.Label(self, textvariable=self.timeElapsed, bg='black', fg='white')
         # timer.grid(row=0, column=1)
-        #create a barGraph
-        self.barGraph = BarGraph(self)
+
+    def roll_a(self, event): #handles keypress
+        self.roll()
+        return "break"
 
     def roll(self):
         self.turnOrder = Setup.turns
-        self.rollNum.set(random.randint(1,6)+random.randint(1,6))
+        self.rollNum.set(random.SystemRandom().randint(1,6) + random.SystemRandom().randint(1,6)) #uses SystemRandom to produce better results
         tn = self.trackTurn()
         self.barGraph.drawGraph(int(self.rollNum.get()), tn[1])
-        if tn[1] == 'royal blue' :
-            self.turn.set('blue turn')
+        self.turn.set(str(tn[1])+" turn")
+        self.turnLabel.configure(bg=tn[2])
+        try:
+            self.nextTurn.configure(text="next "+self.turnOrder[tn[0]+1]['player'], bg=self.turnOrder[tn[0]+1]['color'])
+        except:
+            self.nextTurn.configure(text="next "+self.turnOrder[1]['player'], bg=self.turnOrder[1]['color'])
+        if tn[0]-1 == 0:
+            self.prevTurn.configure(text="previous "+self.turnOrder[len(self.turnOrder)-1]['player'], bg=self.turnOrder[len(self.turnOrder)-1]['color'])
         else:
-            self.turn.set(tn[1]+" turn")
-        self.turnLabel.configure(bg=tn[1])
-        #audio text to speech
-        self.sound()
+            self.prevTurn.configure(text="previous "+self.turnOrder[tn[0]-1]['player'], bg=self.turnOrder[tn[0]-1]['color'])
+        #audio
+        if self.audioToggle.get() == 1:
+            # sthread = threading.Thread(target=self.sound())
+            # sthread.start() #rolls
+            self.sound()
 
     def sound(self):
-        tts= gTTS(text=self.rollNum.get(), lang='en')
-        tts.save("number2.mp3")
-        if self.audioToggle.get() == 1:
-            os.system("number2.mp3")
+        # tts= gTTS(text=self.rollNum.get(), lang='en') #google text to speech
+        # file_name = str(DiceRoller.ticker)+".mp3" #must change filename everytime
+        # tts.save(file_name)
+        playsound.playsound("sounds\\"+self.rollNum.get()+".mp3", False)
+        #os.remove(file_name)
+        #DiceRoller.ticker +=1
 
     def trackTurn(self): #returns the current turn. called every roll to keep track
-        for k in self.turnOrder:
-            if self.turnOrder[k][0] == self.turnCount:
+        for num, value in self.turnOrder.items():
+            if num == self.turnCount:
                 self.turnCount +=1
-                return [self.turnOrder[k][0], self.turnOrder[k][1]] #number, color
-        self.turnCount = 2
-        return [self.turnOrder[1][0], self.turnOrder[1][1]]
+                return [num, value['player'], value['color']] #number, player, color
+        self.turnCount = 2 #set to turn 2 but displays turn 1 because next iteration will display turn 2
+        return [1, self.turnOrder[1]['player'], self.turnOrder[1]['color']]
+
+    def postupdate(self):
+        self.rollButton.focus_force()
+        pass
 
 class BarGraph:
     def __init__(self, parent):
-        self.width = 1200
-        self.height = 900
+        self.width = 1000
+        self.height = 800
         self.parent = parent
         #Canvas for barGraph
         self.graph = tk.Canvas(parent, width= self.width, height = self.height, bg='light gray')
-        self.graph.grid(row=1, column=1, rowspan=2, padx=10, pady=10)
+        self.graph.grid(row=1, column=1, rowspan=4, padx=10, pady=10)
 
         labelGap = self.width/11 -7 #scales placement of labels and graphs according to canvas
-        #each dictionary key holds an array containing the number, start position of the bar, rolltimes
-        self.labels = {2:[labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            3:[2*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            4:[3*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            5:[4*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            6:[5*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            7:[6*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            8:[7*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            9:[8*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            10:[ 9*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            11:[ 10*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}],
-            12:[ 11*labelGap, {'red': 0, 'royal blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}]}
+        #each dictionary key holds an array containing the number, start position of the bar, and rolltimes
+        self.labels={}
+        for i in range(2,13):
+            self.labels[i] = [(i-1)*labelGap, {'red': 0, 'blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}]
+
         self.drawLabels(self.graph)
         self.drawBars(self.graph)
 
@@ -105,7 +126,7 @@ class BarGraph:
         self.totalRolls(newGraph)
         self.graph = newGraph
         #self.graph.update()
-        self.graph.grid(row=1, column=1, rowspan=2, padx=10, pady=10)
+        self.graph.grid(row=1, column=1, rowspan=4, padx=10, pady=10)
 
     def drawLabels(self, canvas):
         for i in self.labels: #write labels
@@ -114,9 +135,7 @@ class BarGraph:
     def drawBars(self, canvas): #draw bars on graph
         minHeight = self.height-30
         fullHeight = minHeight - 30
-        if self.findMaxRolls()==0:
-            segmentHeight =0
-        else:
+        if self.findMaxRolls() != 0:
             segmentHeight = fullHeight/self.findMaxRolls()
             for c in self.labels:
                 tmin = minHeight
@@ -124,12 +143,12 @@ class BarGraph:
                     #print(d + str(self.labels[c][1][d]))
                     if self.labels[c][1][d] != 0:
                         tmax = tmin - (self.labels[c][1][d]*segmentHeight)
-                        canvas.create_rectangle(self.labels[c][0] -7, tmax, self.labels[c][0] +27, tmin, fill=d)
+                        canvas.create_rectangle(self.labels[c][0] -7, tmax, self.labels[c][0] +30, tmin, fill=MainApp.displayed_color[d])
                         canvas.create_text(self.labels[c][0]+7, (tmin-tmax)/2+tmax, text=self.labels[c][1][d]) #rolls per color
                         tmin = tmax
                 #labels indicating how many rolls
                 rollsPer = self.rollsPerNumber(c)
-                canvas.create_text(self.labels[c][0]+3, minHeight-(rollsPer*segmentHeight)-20, anchor='nw', text=rollsPer, font=("Sans", 14, 'bold'))
+                canvas.create_text(self.labels[c][0]+5, minHeight-(rollsPer*segmentHeight)-20, anchor='nw', text=rollsPer, font=("Sans", 14, 'bold'))
 
     def totalRolls(self, canvas):
         total=0
@@ -137,7 +156,7 @@ class BarGraph:
             total+= self.rollsPerNumber(x)
         canvas.create_text(self.width*.87, self.height*.03, anchor='nw', text="Total: "+str(total), font=('Comic Sans', 14))
 
-    def findMaxRolls(self): #finds maximum rolls of one number
+    def findMaxRolls(self): #finds maximum rolls in all numbers
         sumOfRolls = {} #holds list of rolls of each number
         for r in self.labels:
             sumOfRolls[r] = self.rollsPerNumber(r)
@@ -147,20 +166,20 @@ class BarGraph:
                 maxRolls = sumOfRolls[a]
         return maxRolls
 
-    def rollsPerNumber(self, num):
+    def rollsPerNumber(self, num): #sum rolls of one number
         sumR = 0
         for p in self.labels[num][1]:
             sumR += self.labels[num][1][p]
         return sumR
 
 class Setup(tk.Frame):
-    turns = {} #holds turns. Number as key and color as value
+    turns = {} #holds turns. {turn : [turn: color]}
     startTime= 0.0
     def __init__(self, parent, controller, *args, **kwargs):
         tk.Frame.__init__(self, parent, *args, **kwargs)
         self.controller = controller
-        self.configure(bg ='gray20')
-        subContainer = tk.Frame(self, bg='gray20')
+        self.configure(bg = MainApp.BG_COLOR)
+        subContainer = tk.Frame(self, bg = MainApp.BG_COLOR)
         self.titleLabel = tk.Label(subContainer, text = "Catan Dice Stat Tracker", bg='grey20', fg='white', font=('Times', 70, 'italic'))
         self.titleLabel.grid(row=0, columnspan=6, padx=20, pady=10)
 
@@ -175,21 +194,25 @@ class Setup(tk.Frame):
             font=('Sans', 25), command=self.play)
         self.play.grid(row=3, column=2, columnspan=2, padx=10, pady=10)
 
-        self.orderNum = {'red': tk.IntVar(), 'royal blue':tk.IntVar(), 'white':tk.IntVar(), 'orange':tk.IntVar(), 'green':tk.IntVar(), 'brown':tk.IntVar()}
+        toQuickRoll = tk.Button(subContainer, text='Simple Dice', bg='black', fg='white', activebackground='gray25', activeforeground='white',
+            font=('Sans', 18), command= lambda: controller.show_frame(QuickRoll))
+        toQuickRoll.grid(row=3, column=4, columnspan=2, padx=10, pady=10)
 
-        self.red = tk.Button(subContainer, bg='red', width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['red'], font=('Sans', 30, 'bold'), command=lambda: self.order('red', self.red))
+        self.orderNum = {'red': tk.IntVar(), 'blue':tk.IntVar(), 'white':tk.IntVar(), 'orange':tk.IntVar(), 'green':tk.IntVar(), 'brown':tk.IntVar()}
+
+        self.red = tk.Button(subContainer, bg=MainApp.displayed_color['red'], width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['red'], font=('Sans', 30, 'bold'), command=lambda: self.order('red', self.red))
         self.red.grid(row=2, column=0)
-        self.blue = tk.Button(subContainer, bg='royal blue', width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['royal blue'], font=('Sans', 30, 'bold'), command=lambda: self.order('royal blue', self.blue))
+        self.blue = tk.Button(subContainer, bg=MainApp.displayed_color['blue'], width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['blue'], font=('Sans', 30, 'bold'), command=lambda: self.order('blue', self.blue))
         self.blue.grid(row=2, column=1)
-        self.white = tk.Button(subContainer, bg='white', width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['white'], font=('Sans', 30, 'bold'), command=lambda: self.order('white', self.white))
+        self.white = tk.Button(subContainer, bg=MainApp.displayed_color['white'], width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['white'], font=('Sans', 30, 'bold'), command=lambda: self.order('white', self.white))
         self.white.grid(row=2, column=2)
-        self.orange = tk.Button(subContainer, bg='orange', width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['orange'], font=('Sans', 30, 'bold'), command=lambda: self.order('orange', self.orange))
+        self.orange = tk.Button(subContainer, bg=MainApp.displayed_color['orange'], width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['orange'], font=('Sans', 30, 'bold'), command=lambda: self.order('orange', self.orange))
         self.orange.grid(row=2, column=3)
-        self.green = tk.Button(subContainer, bg='green', width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['green'], font=('Sans', 30, 'bold'), command=lambda: self.order('green', self.green))
+        self.green = tk.Button(subContainer, bg=MainApp.displayed_color['green'], width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['green'], font=('Sans', 30, 'bold'), command=lambda: self.order('green', self.green))
         self.green.grid(row=2, column=4)
-        self.brown = tk.Button(subContainer, bg='brown', width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['brown'], font=('Sans', 30, 'bold'), command=lambda: self.order('brown', self.brown))
+        self.brown = tk.Button(subContainer, bg=MainApp.displayed_color['brown'], width=6, height=2, disabledforeground='gray25', textvariable=self.orderNum['brown'], font=('Sans', 30, 'bold'), command=lambda: self.order('brown', self.brown))
         self.brown.grid(row=2, column=5)
-        subContainer.grid()
+        subContainer.pack(expand=1)
 
     def order(self, color, button): #sets the order
         self.orderNum[color].set(self.findNextTurn(self.orderNum)+1)
@@ -209,15 +232,22 @@ class Setup(tk.Frame):
         if self.findNextTurn(self.orderNum) > 2:
             Setup.turns = self.convertToArray(self.orderNum)
             Setup.startTime = time.time()
+            #disable turn buttons
             self.reset.configure(state='disabled')
+            self.red.configure(state='disabled')
+            self.blue.configure(state='disabled')
+            self.white.configure(state='disabled')
+            self.orange.configure(state='disabled')
+            self.green.configure(state='disabled')
+            self.brown.configure(state='disabled')
             self.controller.show_frame(DiceRoller)
         else:
             self.info.configure(text="select at least 3 players")
 
     def convertToArray(self, Tlist):
         t={}
-        for (key, value) in Tlist.items():
-            t[value.get()] = [value.get(), key] #number, color
+        for key, value in Tlist.items():
+            t[value.get()] = {'turn':value.get(), 'player':key, 'color':MainApp.displayed_color[key]}
         return t
 
     def findNextTurn(self, orderList):
@@ -227,25 +257,73 @@ class Setup(tk.Frame):
                 max = orderList[a].get()
         return max
 
-class MainApplication(tk.Tk):
+class QuickRoll(tk.Frame):
+    #mainly just to roll for turns
+    def __init__(self, parent, controller, *args, **kwargs):
+        tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = MainApp.BG_COLOR)
+        subContainer = tk.Frame(self, bg = MainApp.BG_COLOR)
+
+        back = tk.Button(subContainer, text='<<<', bg='black', fg='white', font=("Sans", 14, 'bold'), command= lambda: controller.show_frame(Setup))
+        back.grid(row=0, column=0)
+
+        self.info = tk.Label(subContainer, text ="Simple Dice \n Mainly to roll for turns", bg='grey20', fg='white', font=('Sans', 20))
+        self.info.grid(row=1, column=1)
+
+        self.quickDice = tk.Button(subContainer, text='Roll', font=('Ariel', 200), bg='black', activebackground='dark gray', activeforeground='white', fg='white', width=4,
+            command=self.simpleRoll)
+        self.quickDice.grid(row=2, column=1)
+        self.quickDice.bind('<space>', self.simpleRoll_a)
+        #self.quickDice.focus_force()
+
+        subContainer.pack(expand=True)
+        # subContainer.grid_columnconfigure(0, weight=1)
+        # subContainer.grid_rowconfigure(0, weight=1)
+
+    def simpleRoll_a(self, event): #handles keypress
+        self.simpleRoll()
+        return "break"
+
+    def simpleRoll(self):
+        self.quickDice.configure(text= random.SystemRandom().randint(1,6) + random.SystemRandom().randint(1,6))
+
+    def postupdate(self): #after this frame is brought up
+        self.quickDice.focus_force()
+        pass
+
+class MainApp(tk.Tk):
+    #color to be used for each player (tkinter colors)
+    displayed_color = {'blue' : 'royal blue',
+                        'red'   : 'red2',
+                        'white' : 'white',
+                        'orange': 'dark orange',
+                        'green' : 'dark green',
+                        'brown' : 'saddle brown'
+                        }
+    BG_COLOR = 'gray20' #background color
+
     def __init__(self, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
+        self.configure(bg = MainApp.BG_COLOR)
         container = tk.Frame(self)
-        container.grid()
+        container.pack(expand=True)
 
         self.frames = {}
-        for F in (Setup, DiceRoller):
+        for F in (Setup, DiceRoller, QuickRoll):
             frame = F(container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
-        self.frames[Setup].grid_columnconfigure(0, weight=1)
-        self.frames[Setup].grid_rowconfigure(0,weight=1)
         self.show_frame(Setup)
 
     def show_frame(self, pageName):
         frame = self.frames[pageName]
         frame.tkraise()
+        try:
+            frame.postupdate()
+        except AttributeError:
+            pass
 
-app = MainApplication()
+app = MainApp()
 app.title("Catan Dice Roller")
 app.mainloop()
