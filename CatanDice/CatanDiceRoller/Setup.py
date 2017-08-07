@@ -17,7 +17,7 @@ if sys.platform == 'win32':
     base = "Win32GUI"
 
 executables = [cx_Freeze.Executable("CatanDiceRoller.py",
-                icon = "icon.ico"
+                icon = "icon.ico",
                 base=base)]
 
 cx_Freeze.setup(
