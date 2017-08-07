@@ -1,15 +1,12 @@
 #attempt at catan dice roller
 #@author Hu.man
 import tkinter as tk
+from tkinter import messagebox
 import random
 from gtts import gTTS
-import time
-import threading
 import playsound
-import os
 
 class DiceRoller(tk.Frame):
-    #ticker=0 #some reason the sound file needs to be different everytime???
     def __init__(self, parent, controller, *args, **kwargs):
         tk.Frame.__init__(self, parent, *args, **kwargs)
         self.controller = controller
@@ -19,19 +16,16 @@ class DiceRoller(tk.Frame):
         self.turn = tk.StringVar()#number
         self.turnCount = 1
         self.parent = parent
-        self.timeElapsed = tk.StringVar()
         self.barGraph = BarGraph(self) #creat BarGraph object
 
-        self.rollNum.set("Roll")
-        self.rollButton = tk.Button(self, textvariable=self.rollNum, font=('Ariel', 100), bg='black',
+        self.rollButton = tk.Button(self, text='Roll', font=('Ariel', 100), bg='black',
             activebackground='dark gray', activeforeground='white', fg='white', width=4,
             command=self.roll)
         self.rollButton.bind('<space>', self.roll_a)
         self.rollButton.grid(row=4, column=0, padx=10, pady=10)
-        #self.rollButton.focus_force()
 
         self.turn.set("Start")
-        self.turnLabel = tk.Label(self, textvariable=self.turn, bg='snow' ,font=('Sans', 35), width=10, height=3)
+        self.turnLabel = tk.Label(self, textvariable=self.turn, bg='snow' ,font=('Sans', 35, 'bold'), width=10, height=3)
         self.turnLabel.grid(row=2, column=0, padx=10, pady=10)
 
         self.nextTurn = tk.Label(self, text='', bg='snow' ,font=('Sans', 20), width=13, height=1)
@@ -46,19 +40,24 @@ class DiceRoller(tk.Frame):
         self.audioToggle = tk.IntVar() #1=on 0=off
         audio = tk.Checkbutton(self, variable = self.audioToggle, bg='black', fg='white', activebackground=MainApp.BG_COLOR, activeforeground='white',
             selectcolor='red', text="Audio", font=("Sans", 14, 'bold'))
-        audio.grid(row=0, column=1, sticky='e')
+        audio.grid(row=0, column=2, sticky='e')
 
-        # self.timeElapsed = tk.StringVar()
-        # timer = tk.Label(self, textvariable=self.timeElapsed, bg='black', fg='white')
-        # timer.grid(row=0, column=1)
+        statReset = tk.Button(self, text="reset stats", bg='black', fg='white', font=("Sans", 14, 'bold'), command=self.reset_stats)
+        statReset.grid(row=0, column=1, sticky='e')
+
+    def reset_stats(self):
+        if messagebox.askyesno("reset Statistics?", "Are you sure you want to reset the roll statistics?"):
+            self.barGraph.clearStatInfo()
 
     def roll_a(self, event): #handles keypress
         self.roll()
         return "break"
 
     def roll(self):
-        self.turnOrder = Setup.turns
-        self.rollNum.set(random.SystemRandom().randint(1,6) + random.SystemRandom().randint(1,6)) #uses SystemRandom to produce better results
+        dice1 = random.SystemRandom().randint(1,6)
+        dice2 = random.SystemRandom().randint(1,6)
+        self.rollNum.set(dice1 + dice2) #uses SystemRandom to produce better results
+        self.rollButton.configure(text= str(dice1)+ "+" +str(dice2))
         tn = self.trackTurn()
         self.barGraph.drawGraph(int(self.rollNum.get()), tn[1])
         self.turn.set(str(tn[1])+" turn")
@@ -73,17 +72,11 @@ class DiceRoller(tk.Frame):
             self.prevTurn.configure(text="previous "+self.turnOrder[tn[0]-1]['player'], bg=self.turnOrder[tn[0]-1]['color'])
         #audio
         if self.audioToggle.get() == 1:
-            # sthread = threading.Thread(target=self.sound())
-            # sthread.start() #rolls
-            self.sound()
+            self.sound(tn[1])
 
-    def sound(self):
-        # tts= gTTS(text=self.rollNum.get(), lang='en') #google text to speech
-        # file_name = str(DiceRoller.ticker)+".mp3" #must change filename everytime
-        # tts.save(file_name)
-        playsound.playsound("sounds\\"+self.rollNum.get()+".mp3", False)
-        #os.remove(file_name)
-        #DiceRoller.ticker +=1
+    def sound(self, player):
+        playsound.playsound("sounds\\"+player+self.rollNum.get()+".mp3", False)
+        #False runs asynchronously
 
     def trackTurn(self): #returns the current turn. called every roll to keep track
         for num, value in self.turnOrder.items():
@@ -94,8 +87,8 @@ class DiceRoller(tk.Frame):
         return [1, self.turnOrder[1]['player'], self.turnOrder[1]['color']]
 
     def postupdate(self):
-        self.rollButton.focus_force()
-        pass
+        self.rollButton.focus()
+        self.turnOrder = Setup.turns
 
 class BarGraph:
     def __init__(self, parent):
@@ -104,7 +97,7 @@ class BarGraph:
         self.parent = parent
         #Canvas for barGraph
         self.graph = tk.Canvas(parent, width= self.width, height = self.height, bg='light gray')
-        self.graph.grid(row=1, column=1, rowspan=4, padx=10, pady=10)
+        self.graph.grid(row=1, column=1, rowspan=4, columnspan=2, padx=10, pady=10)
 
         labelGap = self.width/11 -7 #scales placement of labels and graphs according to canvas
         #each dictionary key holds an array containing the number, start position of the bar, and rolltimes
@@ -114,6 +107,10 @@ class BarGraph:
 
         self.drawLabels(self.graph)
         self.drawBars(self.graph)
+
+    def clearStatInfo(self):
+        for index, entry in self.labels.items():
+            entry[1] = {'red': 0, 'blue':0, 'white':0, 'orange':0, 'green':0, 'brown':0}
 
     def drawGraph(self, entry, player): #update graph
         #print(str(entry) + " "+player)
@@ -125,8 +122,7 @@ class BarGraph:
         self.drawBars(newGraph)
         self.totalRolls(newGraph)
         self.graph = newGraph
-        #self.graph.update()
-        self.graph.grid(row=1, column=1, rowspan=4, padx=10, pady=10)
+        self.graph.grid(row=1, column=1, rowspan=4, columnspan=2, padx=10, pady=10)
 
     def drawLabels(self, canvas):
         for i in self.labels: #write labels
@@ -229,11 +225,10 @@ class Setup(tk.Frame):
         self.brown.configure(state='normal')
 
     def play(self): #changes to DiceRoller
-        if self.findNextTurn(self.orderNum) > 2:
+        if self.findNextTurn(self.orderNum) > 1:
             Setup.turns = self.convertToArray(self.orderNum)
-            Setup.startTime = time.time()
+            #self.reset.configure(state='disabled')
             #disable turn buttons
-            self.reset.configure(state='disabled')
             self.red.configure(state='disabled')
             self.blue.configure(state='disabled')
             self.white.configure(state='disabled')
@@ -242,7 +237,7 @@ class Setup(tk.Frame):
             self.brown.configure(state='disabled')
             self.controller.show_frame(DiceRoller)
         else:
-            self.info.configure(text="select at least 3 players")
+            self.info.configure(text="select at least 2 players")
 
     def convertToArray(self, Tlist):
         t={}
@@ -278,25 +273,24 @@ class QuickRoll(tk.Frame):
         #self.quickDice.focus_force()
 
         subContainer.pack(expand=True)
-        # subContainer.grid_columnconfigure(0, weight=1)
-        # subContainer.grid_rowconfigure(0, weight=1)
 
     def simpleRoll_a(self, event): #handles keypress
         self.simpleRoll()
         return "break"
 
     def simpleRoll(self):
-        self.quickDice.configure(text= random.SystemRandom().randint(1,6) + random.SystemRandom().randint(1,6))
+        dice1 = random.SystemRandom().randint(1,6)
+        dice2 = random.SystemRandom().randint(1,6)
+        self.quickDice.configure(text= str(dice1) +"+"+ str(dice2))
 
     def postupdate(self): #after this frame is brought up
-        self.quickDice.focus_force()
-        pass
+        self.quickDice.focus()
 
 class MainApp(tk.Tk):
     #color to be used for each player (tkinter colors)
     displayed_color = {'blue' : 'royal blue',
                         'red'   : 'red2',
-                        'white' : 'white',
+                        'white' : 'snow',
                         'orange': 'dark orange',
                         'green' : 'dark green',
                         'brown' : 'saddle brown'
