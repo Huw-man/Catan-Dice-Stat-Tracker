@@ -5,6 +5,8 @@ from tkinter import messagebox
 import random
 from gtts import gTTS
 import playsound
+import sys
+import os
 
 class DiceRoller(tk.Frame):
     def __init__(self, parent, controller, *args, **kwargs):
@@ -75,7 +77,8 @@ class DiceRoller(tk.Frame):
             self.sound(tn[1])
 
     def sound(self, player):
-        playsound.playsound("sounds\\"+player+self.rollNum.get()+".mp3", False)
+        sound_file = find_data_file("sounds\\"+player+self.rollNum.get()+".mp3")
+        playsound.playsound(sound_file, False)
         #False runs asynchronously
 
     def trackTurn(self): #returns the current turn. called every roll to keep track
@@ -318,6 +321,17 @@ class MainApp(tk.Tk):
         except AttributeError:
             pass
 
+def find_data_file(filename): #desktop shortcut needs this because of different working directory
+    if getattr(sys, 'frozen', False):
+        # The application is frozen
+        datadir = os.path.dirname(sys.executable)
+    else:
+        # The application is not frozen
+        # Change this bit to match where you store your data files:
+        datadir = os.path.dirname(__file__)
+    return os.path.join(datadir, filename)
+
 app = MainApp()
-app.title("Catan Dice Roller")
+app.title("Catan Dice Stat Tracker")
+app.iconbitmap(find_data_file('icon.ico'))
 app.mainloop()

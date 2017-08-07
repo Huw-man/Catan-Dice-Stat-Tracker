@@ -16,8 +16,12 @@ base = None
 if sys.platform == 'win32':
     base = "Win32GUI"
 
-executables = [cx_Freeze.Executable("CatanDiceRoller.py",
+executables = [cx_Freeze.Executable(
+                script = "CatanDiceRoller.py",
+                targetName = "Catan Dice Stat Tracker.exe",
                 icon = "icon.ico",
+                shortcutName = "Catan Dice Stat Tracker",
+                shortcutDir = "DesktopFolder",
                 base=base)]
 
 cx_Freeze.setup(
