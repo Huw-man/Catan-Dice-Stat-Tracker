@@ -9,5 +9,5 @@ Features:
   
   Turn tracker to display order of turns
 
-![](./CatanDice/MainScreen.png)
+![](./CatanDice/MainScreen.PNG)
 ![](./CatanDice/SuperLongGame.png)
