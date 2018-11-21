@@ -8,3 +8,6 @@ Features:
   Live audio to announce dice rolls
   
   Turn tracker to display order of turns
+
+![](CatanDiceRoller/MainScreen.png)
+![](CatanDiceRoller/SuperLongGame.png)
